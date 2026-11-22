@@ -1,72 +1,72 @@
-// The Marlow Heist — the night's rules, no drawing. step() takes an input
-// ({dx, dy, sneak}) and a delta in seconds and moves everything forward: a
-// guard patrols its waypoints, watches a cone, and chases when the thief
-// gets too close inside it; a camera sweeps its cone and feeds the alarm;
-// the alarm drains while the thief stays unseen and ends the run at 100.
-// Loot is pocketed by walking over it; the exit opens once the Star
-// Sapphire is in the bag.
+// The Marlow Heist — the night's rules, no drawing. advance() takes an
+// input ({dx, dy, creep}) and a delta in seconds and moves everything
+// forward: a watchman walks his route, watches a cone, and gives chase when
+// the thief gets too close inside it; a lens sweeps its cone and feeds the
+// siren; the siren drains while the thief stays unseen and ends the run at
+// its ceiling. Swag is pocketed by walking over it; the door opens once
+// the Star Sapphire is in the bag.
 
 import {
-  ALARM, CAMERA, CAMERAS, CASES, EXIT, FIELD, GUARD, GUARDS, LOOT,
-  THIEF, THIEF_START, WALLS,
+  ARENA, BARRIERS, BURGLAR, DOOR, EYES, LENS, PATROLS, POINTS, SIREN,
+  START, SWAG, VITRINES, WATCHMAN,
 } from './config.js';
 
-const TAU = Math.PI * 2;
+const CIRCLE = Math.PI * 2;
 
 // Smallest signed turn from angle b to angle a, in (-PI, PI].
-function wrapDelta(a, b) {
-  let d = (a - b) % TAU;
-  if (d > Math.PI) d -= TAU;
-  if (d < -Math.PI) d += TAU;
+function shortestTurn(a, b) {
+  let d = (a - b) % CIRCLE;
+  if (d > Math.PI) d -= CIRCLE;
+  if (d < -Math.PI) d += CIRCLE;
   return d;
 }
 
-function wrapAngle(a) {
-  return ((a % TAU) + TAU) % TAU;
+function clampAngle(a) {
+  return ((a % CIRCLE) + CIRCLE) % CIRCLE;
 }
 
 // Does the segment (x1,y1)-(x2,y2) cross rectangle r? Slab test.
-function segmentCrossesBox(x1, y1, x2, y2, r) {
+function rayBlocked(x1, y1, x2, y2, r) {
   const dx = x2 - x1;
   const dy = y2 - y1;
-  let tmin = 0;
-  let tmax = 1;
+  let low = 0;
+  let high = 1;
   for (const [p, q] of [[-dx, x1 - r.x], [dx, r.x + r.w - x1], [-dy, y1 - r.y], [dy, r.y + r.h - y1]]) {
     if (p === 0) {
       if (q < 0) return false;
     } else {
       const t = q / p;
       if (p < 0) {
-        if (t > tmax) return false;
-        if (t > tmin) tmin = t;
+        if (t > high) return false;
+        if (t > low) low = t;
       } else {
-        if (t < tmin) return false;
-        if (t < tmax) tmax = t;
+        if (t < low) return false;
+        if (t < high) high = t;
       }
     }
   }
   return true;
 }
 
-function sightOpen(x1, y1, x2, y2) {
-  for (const wall of WALLS) {
-    if (segmentCrossesBox(x1, y1, x2, y2, wall)) return false;
+function lineClear(x1, y1, x2, y2) {
+  for (const wall of BARRIERS) {
+    if (rayBlocked(x1, y1, x2, y2, wall)) return false;
   }
   return true;
 }
 
-function inViewCone(px, py, ox, oy, facing, range, halfAngle) {
+function inCone(px, py, ox, oy, facing, range, halfAngle) {
   const dx = px - ox;
   const dy = py - oy;
   const dist = Math.hypot(dx, dy);
   if (dist > range || dist < 1) return dist < 1;
   const toTarget = Math.atan2(dy, dx);
-  return Math.abs(wrapDelta(toTarget, facing)) <= halfAngle;
+  return Math.abs(shortestTurn(toTarget, facing)) <= halfAngle;
 }
 
 // Slide a circle of `radius` along (mx, my) through the solid rectangles,
 // one axis at a time so it glides along walls instead of snagging corners.
-function slideBody(body, mx, my, radius, solids) {
+function glide(body, mx, my, radius, solids) {
   const nx = body.x + mx;
   let blocked = false;
   for (const s of solids) {
@@ -87,191 +87,191 @@ function slideBody(body, mx, my, radius, solids) {
   if (!blocked) body.y = ny;
 }
 
-export function createWorld(seed = 1) {
+export function openNight(seed = 1) {
   void seed;
   return {
-    time: 0,
-    status: 'playing', // 'playing' | 'busted' | 'won'
-    statusNote: '',
-    alarm: 0,
-    score: 0,
-    lootTaken: 0,
-    sapphireTaken: false,
-    thief: {
-      x: THIEF_START.x,
-      y: THIEF_START.y,
-      angle: -Math.PI / 2,
+    clock: 0,
+    fate: 'running', // 'running' | 'caught' | 'escaped'
+    note: '',
+    heat: 0,
+    haul: 0,
+    pocketed: 0,
+    gemInBag: false,
+    burglar: {
+      x: START.x,
+      y: START.y,
+      face: -Math.PI / 2,
       sneaking: false,
       moving: false,
     },
-    guards: GUARDS.map((g) => ({
-      waypoints: g.waypoints,
-      x: g.waypoints[0].x,
-      y: g.waypoints[0].y,
-      angle: 0,
-      targetIndex: 1,
+    watchmen: PATROLS.map((p) => ({
+      route: p.route,
+      x: p.route[0].x,
+      y: p.route[0].y,
+      face: 0,
+      leg: 1,
       mode: 'patrol', // 'patrol' | 'chase'
-      chaseTimer: 0,
-      lastSeenX: 0,
-      lastSeenY: 0,
+      recall: 0,
+      seenX: 0,
+      seenY: 0,
     })),
-    cameras: CAMERAS.map((c, i) => ({
+    lenses: EYES.map((c, i) => ({
       x: c.x,
       y: c.y,
-      baseAngle: c.baseAngle,
-      angle: c.baseAngle,
+      rest: c.rest,
+      face: c.rest,
       phase: i * 1.7,
     })),
-    loot: LOOT.map((l) => ({ ...l, taken: false })),
+    swag: SWAG.map((l) => ({ ...l, taken: false })),
   };
 }
 
-export function lootCount(world) {
-  return world.loot.filter((l) => l.taken).length;
+export function takenCount(world) {
+  return world.swag.filter((l) => l.taken).length;
 }
 
-function guardSpotsThief(world, guard) {
-  const range = world.thief.sneaking ? GUARD.sightRange * THIEF.sneakSightShrink : GUARD.sightRange;
-  if (!inViewCone(world.thief.x, world.thief.y, guard.x, guard.y, guard.angle, range, GUARD.sightHalfAngle)) {
+function watchmanSees(world, guard) {
+  const range = world.burglar.sneaking ? WATCHMAN.sight * BURGLAR.creepSight : WATCHMAN.sight;
+  if (!inCone(world.burglar.x, world.burglar.y, guard.x, guard.y, guard.face, range, WATCHMAN.halfCone)) {
     return false;
   }
-  return sightOpen(guard.x, guard.y, world.thief.x, world.thief.y);
+  return lineClear(guard.x, guard.y, world.burglar.x, world.burglar.y);
 }
 
-function cameraSpotsThief(world, camera) {
-  const range = world.thief.sneaking ? CAMERA.sightRange * THIEF.sneakSightShrink : CAMERA.sightRange;
-  if (!inViewCone(world.thief.x, world.thief.y, camera.x, camera.y, camera.angle, range, CAMERA.sightHalfAngle)) {
+function lensSees(world, lens) {
+  const range = world.burglar.sneaking ? LENS.sight * BURGLAR.creepSight : LENS.sight;
+  if (!inCone(world.burglar.x, world.burglar.y, lens.x, lens.y, lens.face, range, LENS.halfCone)) {
     return false;
   }
-  return sightOpen(camera.x, camera.y, world.thief.x, world.thief.y);
+  return lineClear(lens.x, lens.y, world.burglar.x, world.burglar.y);
 }
 
-function stepGuard(world, guard, dt) {
-  const thief = world.thief;
-  const seen = guardSpotsThief(world, guard);
+function moveWatchman(world, guard, dt) {
+  const thief = world.burglar;
+  const seen = watchmanSees(world, guard);
   const dist = Math.hypot(thief.x - guard.x, thief.y - guard.y);
 
   if (guard.mode === 'chase') {
-    guard.chaseTimer -= dt;
+    guard.recall -= dt;
     if (seen) {
-      guard.lastSeenX = thief.x;
-      guard.lastSeenY = thief.y;
-      guard.chaseTimer = GUARD.chaseMemorySeconds;
+      guard.seenX = thief.x;
+      guard.seenY = thief.y;
+      guard.recall = WATCHMAN.memory;
     }
-    const tx = guard.lastSeenX;
-    const ty = guard.lastSeenY;
+    const tx = guard.seenX;
+    const ty = guard.seenY;
     const d = Math.hypot(tx - guard.x, ty - guard.y);
     if (d > 4) {
       const want = Math.atan2(ty - guard.y, tx - guard.x);
-      guard.angle = wrapAngle(guard.angle + wrapDelta(want, guard.angle) * Math.min(1, dt * 6));
-      slideBody(guard, Math.cos(guard.angle) * GUARD.chaseSpeed * dt, Math.sin(guard.angle) * GUARD.chaseSpeed * dt, GUARD.radius, WALLS);
+      guard.face = clampAngle(guard.face + shortestTurn(want, guard.face) * Math.min(1, dt * 6));
+      glide(guard, Math.cos(guard.face) * WATCHMAN.pursuit * dt, Math.sin(guard.face) * WATCHMAN.pursuit * dt, WATCHMAN.radius, BARRIERS);
     }
-    if (guard.chaseTimer <= 0) guard.mode = 'patrol';
+    if (guard.recall <= 0) guard.mode = 'patrol';
     return seen;
   }
 
   // Patrol: walk to the next waypoint, turning at each end.
-  const target = guard.waypoints[guard.targetIndex];
+  const target = guard.route[guard.leg];
   const d = Math.hypot(target.x - guard.x, target.y - guard.y);
   if (d < 6) {
-    guard.targetIndex = (guard.targetIndex + 1) % guard.waypoints.length;
+    guard.leg = (guard.leg + 1) % guard.route.length;
   } else {
     const want = Math.atan2(target.y - guard.y, target.x - guard.x);
-    guard.angle = wrapAngle(guard.angle + wrapDelta(want, guard.angle) * Math.min(1, dt * 8));
-    slideBody(guard, Math.cos(guard.angle) * GUARD.patrolSpeed * dt, Math.sin(guard.angle) * GUARD.patrolSpeed * dt, GUARD.radius, WALLS);
+    guard.face = clampAngle(guard.face + shortestTurn(want, guard.face) * Math.min(1, dt * 8));
+    glide(guard, Math.cos(guard.face) * WATCHMAN.patrol * dt, Math.sin(guard.face) * WATCHMAN.patrol * dt, WATCHMAN.radius, BARRIERS);
   }
 
-  if (seen && dist < GUARD.chaseTriggerRange) {
+  if (seen && dist < WATCHMAN.chaseWithin) {
     guard.mode = 'chase';
-    guard.chaseTimer = GUARD.chaseMemorySeconds;
-    guard.lastSeenX = thief.x;
-    guard.lastSeenY = thief.y;
+    guard.recall = WATCHMAN.memory;
+    guard.seenX = thief.x;
+    guard.seenY = thief.y;
   }
   return seen;
 }
 
-export function step(world, input, dt) {
-  if (world.status !== 'playing') return;
-  world.time += dt;
-  const thief = world.thief;
+export function advance(world, input, dt) {
+  if (world.fate !== 'running') return;
+  world.clock += dt;
+  const burglar = world.burglar;
 
-  // --- The thief moves. ---
-  const speed = input.sneak ? THIEF.sneakSpeed : THIEF.walkSpeed;
-  thief.sneaking = !!input.sneak;
+  // --- The burglar moves. ---
+  const speed = input.creep ? BURGLAR.creep : BURGLAR.stroll;
+  burglar.sneaking = !!input.creep;
   const len = Math.hypot(input.dx, input.dy);
-  thief.moving = len > 0.01;
-  if (thief.moving) {
+  burglar.moving = len > 0.01;
+  if (burglar.moving) {
     const nx = (input.dx / len) * speed * dt;
     const ny = (input.dy / len) * speed * dt;
-    thief.angle = Math.atan2(input.dy, input.dx);
-    slideBody(thief, nx, ny, THIEF.radius, [...WALLS, ...CASES]);
-    thief.x = Math.max(THIEF.radius + 24, Math.min(FIELD.width - 24 - THIEF.radius, thief.x));
-    thief.y = Math.max(THIEF.radius + 24, Math.min(FIELD.height - 24 - THIEF.radius, thief.y));
+    burglar.face = Math.atan2(input.dy, input.dx);
+    glide(burglar, nx, ny, BURGLAR.radius, [...BARRIERS, ...VITRINES]);
+    burglar.x = Math.max(BURGLAR.radius + 24, Math.min(ARENA.width - 24 - BURGLAR.radius, burglar.x));
+    burglar.y = Math.max(BURGLAR.radius + 24, Math.min(ARENA.height - 24 - BURGLAR.radius, burglar.y));
   }
 
-  // --- Cameras sweep. ---
-  for (const camera of world.cameras) {
-    const t = world.time + camera.phase;
-    const swing = Math.sin((t / CAMERA.sweepSeconds) * Math.PI * 2) * CAMERA.sweepHalfAngle;
-    camera.angle = camera.baseAngle + swing;
+  // --- Lenses sweep. ---
+  for (const lens of world.lenses) {
+    const t = world.clock + lens.phase;
+    const swing = Math.sin((t / LENS.sweepTime) * Math.PI * 2) * LENS.sweep;
+    lens.face = lens.rest + swing;
   }
 
-  // --- Eyes on the thief, and the alarm answers. ---
-  let guardSpotted = false;
-  for (const guard of world.guards) {
-    if (stepGuard(world, guard, dt)) guardSpotted = true;
-    // A guard that reaches the thief ends the run badly.
-    if (Math.hypot(thief.x - guard.x, thief.y - guard.y) < GUARD.radius + THIEF.radius + 2) {
-      world.alarm = Math.min(ALARM.max, world.alarm + GUARD.touchAlarm);
-      // Shove the thief clear and send the guard back to its patrol.
-      const away = Math.atan2(thief.y - guard.y, thief.x - guard.x);
-      thief.x += Math.cos(away) * 46;
-      thief.y += Math.sin(away) * 46;
+  // --- Eyes on the burglar, and the siren answers. ---
+  let guardSeen = false;
+  for (const guard of world.watchmen) {
+    if (moveWatchman(world, guard, dt)) guardSeen = true;
+    // A watchman that reaches the burglar ends the night badly.
+    if (Math.hypot(burglar.x - guard.x, burglar.y - guard.y) < WATCHMAN.radius + BURGLAR.radius + 2) {
+      world.heat = Math.min(SIREN.ceiling, world.heat + WATCHMAN.grabAlarm);
+      // Shove the burglar clear and send the watchman back to his route.
+      const away = Math.atan2(burglar.y - guard.y, burglar.x - guard.x);
+      burglar.x += Math.cos(away) * 46;
+      burglar.y += Math.sin(away) * 46;
       guard.mode = 'patrol';
-      guard.chaseTimer = 0;
-      if (world.alarm >= ALARM.max) {
-        world.status = 'busted';
-        world.statusNote = 'A guard grabbed you in the hall.';
+      guard.recall = 0;
+      if (world.heat >= SIREN.ceiling) {
+        world.fate = 'caught';
+        world.note = 'A watchman grabbed you in the hall.';
         return;
       }
     }
   }
-  let cameraSpotted = false;
-  for (const camera of world.cameras) {
-    if (cameraSpotsThief(world, camera)) cameraSpotted = true;
+  let lensSeen = false;
+  for (const lens of world.lenses) {
+    if (lensSees(world, lens)) lensSeen = true;
   }
-  const sneakFactor = thief.sneaking ? THIEF.sneakAlarmFactor : 1;
-  if (guardSpotted) world.alarm += ALARM.guardPerSecond * sneakFactor * dt;
-  else if (cameraSpotted) world.alarm += CAMERA.alarmPerSecond * sneakFactor * dt;
+  const creepFactor = burglar.sneaking ? BURGLAR.creepAlarm : 1;
+  if (guardSeen) world.heat += SIREN.watchmanRate * creepFactor * dt;
+  else if (lensSeen) world.heat += LENS.alarmRate * creepFactor * dt;
   else {
-    const late = world.lootTaken >= 3;
-    world.alarm -= (late ? ALARM.decayLatePerSecond : ALARM.decayPerSecond) * dt;
+    const late = world.pocketed >= 3;
+    world.heat -= (late ? SIREN.coolDownLate : SIREN.coolDown) * dt;
   }
-  world.alarm = Math.max(0, Math.min(ALARM.max, world.alarm));
-  if (world.alarm >= ALARM.max) {
-    world.status = 'busted';
-    world.statusNote = 'The alarm hit 100 — the gallery locked down.';
+  world.heat = Math.max(0, Math.min(SIREN.ceiling, world.heat));
+  if (world.heat >= SIREN.ceiling) {
+    world.fate = 'caught';
+    world.note = 'The siren hit 100 — the gallery locked down.';
     return;
   }
 
-  // --- Loot: walk over it to pocket it. ---
-  for (const item of world.loot) {
+  // --- Swag: walk over it to pocket it. ---
+  for (const item of world.swag) {
     if (item.taken) continue;
-    if (Math.hypot(thief.x - item.x, thief.y - item.y) < THIEF.radius + 22) {
+    if (Math.hypot(burglar.x - item.x, burglar.y - item.y) < BURGLAR.radius + 22) {
       item.taken = true;
-      world.lootTaken += 1;
-      world.score += item.value;
-      if (item.required) world.sapphireTaken = true;
+      world.pocketed += 1;
+      world.haul += item.worth;
+      if (item.key) world.gemInBag = true;
     }
   }
 
-  // --- The exit: open once the sapphire is taken. ---
-  if (world.sapphireTaken
-    && thief.x > EXIT.x && thief.x < EXIT.x + EXIT.w
-    && thief.y > EXIT.y - 6 && thief.y < EXIT.y + EXIT.h) {
-    const timeBonus = Math.max(0, 600 - Math.floor(world.time)) * 2;
-    world.score += timeBonus;
-    world.status = 'won';
-    world.statusNote = `Clean getaway — ${world.lootTaken} of ${world.loot.length} pieces, time bonus ${timeBonus}.`;
+  // --- The door: open once the sapphire is taken. ---
+  if (world.gemInBag
+    && burglar.x > DOOR.x && burglar.x < DOOR.x + DOOR.w
+    && burglar.y > DOOR.y - 6 && burglar.y < DOOR.y + DOOR.h) {
+    const bonus = Math.max(0, POINTS.bonusWindow - Math.floor(world.clock)) * POINTS.bonusPerSecond;
+    world.haul += bonus;
+    world.fate = 'escaped';
+    world.note = `Clean getaway — ${world.pocketed} of ${world.swag.length} pieces, time bonus ${bonus}.`;
   }
 }

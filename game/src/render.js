@@ -1,15 +1,16 @@
 // The Marlow Heist — everything the eye sees, on one canvas. The gallery is
 // top-down: a dark wood floor, a deep-red carpet runner down the hall,
-// brass-trimmed walls, glass display cases, and the two things that matter
-// most in a stealth game — the guards' amber vision cones and the cameras'
+// brass-trimmed walls, glass vitrines, and the two things that matter most
+// in a stealth game — the watchmen's amber vision cones and the lenses'
 // red ones, painted before the figures so the thief reads as standing in
-// the light. The HUD rides along the top: loot, score, alarm meter, clock.
+// the light. The HUD rides along the top: swag, haul, siren meter, clock.
 
 import {
-  ALARM, CAMERA, CASES, EXIT, FIELD, GUARD, LOOT, PALETTE, THIEF, WALLS,
+  ARENA, BARRIERS, BURGLAR, DOOR, LENS, PAINT, SIREN, SWAG, VITRINES,
+  WATCHMAN,
 } from './config.js';
 
-function paintCone(ctx, ox, oy, facing, range, halfAngle, fill, edge) {
+function drawCone(ctx, ox, oy, facing, range, halfAngle, fill, edge) {
   ctx.beginPath();
   ctx.moveTo(ox, oy);
   ctx.arc(ox, oy, range, facing - halfAngle, facing + halfAngle);
@@ -21,7 +22,7 @@ function paintCone(ctx, ox, oy, facing, range, halfAngle, fill, edge) {
   ctx.stroke();
 }
 
-function paintLoot(ctx, item, pulse) {
+function drawSwag(ctx, item, pulse) {
   const x = item.x;
   const y = item.y;
   const glow = 26 + Math.sin(pulse * 3 + item.x) * 5;
@@ -33,7 +34,7 @@ function paintLoot(ctx, item, pulse) {
   ctx.arc(x, y, glow, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = PALETTE.lootGlow;
+  ctx.fillStyle = PAINT.glint;
   ctx.strokeStyle = '#8a6d2f';
   ctx.lineWidth = 2;
   if (item.kind === 'gem') {
@@ -82,38 +83,38 @@ function paintLoot(ctx, item, pulse) {
   }
 }
 
-function paintGuard(ctx, guard, time) {
+function drawWatchman(ctx, guard, time) {
   const bob = guard.mode === 'chase' ? Math.sin(time * 14) * 2 : 0;
-  ctx.fillStyle = PALETTE.guard;
+  ctx.fillStyle = PAINT.uniform;
   ctx.beginPath();
-  ctx.arc(guard.x, guard.y + bob, GUARD.radius, 0, Math.PI * 2);
+  ctx.arc(guard.x, guard.y + bob, WATCHMAN.radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#0e1626';
   ctx.lineWidth = 2;
   ctx.stroke();
   // Cap and facing tick.
-  ctx.fillStyle = PALETTE.guardCap;
+  ctx.fillStyle = PAINT.cap;
   ctx.beginPath();
-  ctx.arc(guard.x, guard.y + bob, GUARD.radius - 6, 0, Math.PI * 2);
+  ctx.arc(guard.x, guard.y + bob, WATCHMAN.radius - 6, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#e8dcc0';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(guard.x, guard.y + bob);
-  ctx.lineTo(guard.x + Math.cos(guard.angle) * (GUARD.radius + 6), guard.y + bob + Math.sin(guard.angle) * (GUARD.radius + 6));
+  ctx.lineTo(guard.x + Math.cos(guard.face) * (WATCHMAN.radius + 6), guard.y + bob + Math.sin(guard.face) * (WATCHMAN.radius + 6));
   ctx.stroke();
   if (guard.mode === 'chase') {
     ctx.fillStyle = '#ff5a5a';
     ctx.font = 'bold 20px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('!', guard.x, guard.y - GUARD.radius - 8 + bob);
+    ctx.fillText('!', guard.x, guard.y - WATCHMAN.radius - 8 + bob);
   }
 }
 
-function paintCamera(ctx, camera) {
+function drawLens(ctx, lens) {
   ctx.save();
-  ctx.translate(camera.x, camera.y);
-  ctx.rotate(camera.angle);
+  ctx.translate(lens.x, lens.y);
+  ctx.rotate(lens.face);
   ctx.fillStyle = '#20242e';
   ctx.fillRect(-4, -7, 22, 14);
   ctx.fillStyle = '#e5484d';
@@ -124,20 +125,20 @@ function paintCamera(ctx, camera) {
   // Wall mount.
   ctx.fillStyle = '#3a3f4a';
   ctx.beginPath();
-  ctx.arc(camera.x, camera.y, 6, 0, Math.PI * 2);
+  ctx.arc(lens.x, lens.y, 6, 0, Math.PI * 2);
   ctx.fill();
 }
 
-function paintThief(ctx, thief) {
-  const r = thief.sneaking ? THIEF.radius - 3 : THIEF.radius;
-  ctx.fillStyle = PALETTE.thiefCloak;
+function drawBurglar(ctx, thief) {
+  const r = thief.sneaking ? BURGLAR.radius - 3 : BURGLAR.radius;
+  ctx.fillStyle = PAINT.cloak;
   ctx.beginPath();
   ctx.moveTo(thief.x, thief.y - r - 6);
   ctx.lineTo(thief.x + r + 4, thief.y + r);
   ctx.lineTo(thief.x - r - 4, thief.y + r);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = PALETTE.thief;
+  ctx.fillStyle = PAINT.coat;
   ctx.beginPath();
   ctx.arc(thief.x, thief.y - 2, r, 0, Math.PI * 2);
   ctx.fill();
@@ -147,171 +148,171 @@ function paintThief(ctx, thief) {
   // Eyes and facing tick.
   ctx.fillStyle = '#ffd75e';
   ctx.beginPath();
-  ctx.arc(thief.x + Math.cos(thief.angle - 0.35) * 5, thief.y - 2 + Math.sin(thief.angle - 0.35) * 5, 1.8, 0, Math.PI * 2);
-  ctx.arc(thief.x + Math.cos(thief.angle + 0.35) * 5, thief.y - 2 + Math.sin(thief.angle + 0.35) * 5, 1.8, 0, Math.PI * 2);
+  ctx.arc(thief.x + Math.cos(thief.face - 0.35) * 5, thief.y - 2 + Math.sin(thief.face - 0.35) * 5, 1.8, 0, Math.PI * 2);
+  ctx.arc(thief.x + Math.cos(thief.face + 0.35) * 5, thief.y - 2 + Math.sin(thief.face + 0.35) * 5, 1.8, 0, Math.PI * 2);
   ctx.fill();
 }
 
-function paintHud(ctx, world) {
-  ctx.fillStyle = PALETTE.hudBar;
-  ctx.fillRect(0, 0, FIELD.width, 52);
-  ctx.strokeStyle = PALETTE.carpetEdge;
+function drawHud(ctx, world) {
+  ctx.fillStyle = PAINT.bar;
+  ctx.fillRect(0, 0, ARENA.width, 52);
+  ctx.strokeStyle = PAINT.brass;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, 52);
-  ctx.lineTo(FIELD.width, 52);
+  ctx.lineTo(ARENA.width, 52);
   ctx.stroke();
 
-  ctx.fillStyle = PALETTE.hudText;
+  ctx.fillStyle = PAINT.ink;
   ctx.font = 'bold 20px Georgia, serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  const taken = world.loot.filter((l) => l.taken).length;
-  ctx.fillText(`LOOT ${taken}/${LOOT.length}`, 28, 27);
-  ctx.fillText(`SCORE ${world.score}`, 220, 27);
-  const minutes = Math.floor(world.time / 60);
-  const seconds = Math.floor(world.time % 60).toString().padStart(2, '0');
+  const taken = world.swag.filter((l) => l.taken).length;
+  ctx.fillText(`SWAG ${taken}/${SWAG.length}`, 28, 27);
+  ctx.fillText(`HAUL ${world.haul}`, 220, 27);
+  const minutes = Math.floor(world.clock / 60);
+  const seconds = Math.floor(world.clock % 60).toString().padStart(2, '0');
   ctx.fillText(`TIME ${minutes}:${seconds}`, 430, 27);
 
-  // Alarm meter.
+  // Siren meter.
   const meterX = 580;
   const meterW = 220;
   ctx.textAlign = 'left';
-  ctx.fillText('ALARM', meterX, 27);
+  ctx.fillText('SIREN', meterX, 27);
   ctx.fillStyle = '#000';
   ctx.fillRect(meterX + 70, 14, meterW, 24);
-  const frac = world.alarm / ALARM.max;
-  ctx.fillStyle = frac > 0.6 ? PALETTE.alarmHigh : PALETTE.alarmLow;
+  const frac = world.heat / SIREN.ceiling;
+  ctx.fillStyle = frac > 0.6 ? PAINT.red : PAINT.amber;
   ctx.fillRect(meterX + 70, 14, meterW * frac, 24);
-  ctx.strokeStyle = PALETTE.hudText;
+  ctx.strokeStyle = PAINT.ink;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(meterX + 70, 14, meterW, 24);
   if (frac > 0.6) {
-    ctx.fillStyle = PALETTE.alarmHigh;
+    ctx.fillStyle = PAINT.red;
     ctx.font = 'bold 16px Georgia, serif';
     ctx.fillText('!', meterX + 70 + meterW + 10, 27);
   }
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = world.sapphireTaken ? PALETTE.exitOpen : PALETTE.exitLocked;
+  ctx.fillStyle = world.gemInBag ? PAINT.open : PAINT.shut;
   ctx.font = 'bold 16px Georgia, serif';
-  ctx.fillText(world.sapphireTaken ? 'SAPPHIRE SECURED — REACH THE EXIT' : 'STEAL THE STAR SAPPHIRE', FIELD.width - 28, 27);
+  ctx.fillText(world.gemInBag ? 'SAPPHIRE SECURED — REACH THE EXIT' : 'STEAL THE STAR SAPPHIRE', ARENA.width - 28, 27);
 }
 
-function paintOverlay(ctx, title, lines, accent) {
+function drawVeil(ctx, title, lines, accent) {
   ctx.fillStyle = 'rgba(8, 10, 14, 0.78)';
-  ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+  ctx.fillRect(0, 0, ARENA.width, ARENA.height);
   ctx.textAlign = 'center';
   ctx.fillStyle = accent;
   ctx.font = 'bold 54px Georgia, serif';
-  ctx.fillText(title, FIELD.width / 2, 300);
-  ctx.fillStyle = PALETTE.hudText;
+  ctx.fillText(title, ARENA.width / 2, 300);
+  ctx.fillStyle = PAINT.ink;
   ctx.font = '22px Georgia, serif';
   lines.forEach((line, i) => {
-    ctx.fillText(line, FIELD.width / 2, 360 + i * 34);
+    ctx.fillText(line, ARENA.width / 2, 360 + i * 34);
   });
 }
 
-export function draw(ctx, world, screen, time) {
-  ctx.clearRect(0, 0, FIELD.width, FIELD.height);
+export function paintNight(ctx, world, scene, now) {
+  ctx.clearRect(0, 0, ARENA.width, ARENA.height);
 
   // Floor: wood planks with a carpet runner down the hall.
-  ctx.fillStyle = PALETTE.floor;
-  ctx.fillRect(0, 0, FIELD.width, FIELD.height);
-  ctx.strokeStyle = PALETTE.floorTile;
+  ctx.fillStyle = PAINT.boards;
+  ctx.fillRect(0, 0, ARENA.width, ARENA.height);
+  ctx.strokeStyle = PAINT.plank;
   ctx.lineWidth = 1;
-  for (let x = 24; x < FIELD.width; x += 64) {
+  for (let x = 24; x < ARENA.width; x += 64) {
     ctx.beginPath();
     ctx.moveTo(x, 24);
-    ctx.lineTo(x, FIELD.height - 24);
+    ctx.lineTo(x, ARENA.height - 24);
     ctx.stroke();
   }
-  for (let y = 24; y < FIELD.height; y += 64) {
+  for (let y = 24; y < ARENA.height; y += 64) {
     ctx.beginPath();
     ctx.moveTo(24, y);
-    ctx.lineTo(FIELD.width - 24, y);
+    ctx.lineTo(ARENA.width - 24, y);
     ctx.stroke();
   }
-  ctx.fillStyle = PALETTE.carpet;
+  ctx.fillStyle = PAINT.runner;
   ctx.fillRect(440, 252, 400, 488);
-  ctx.strokeStyle = PALETTE.carpetEdge;
+  ctx.strokeStyle = PAINT.brass;
   ctx.lineWidth = 3;
   ctx.strokeRect(440, 252, 400, 488);
 
   // Vision cones first, so figures stand inside the light.
-  for (const guard of world.guards) {
-    paintCone(ctx, guard.x, guard.y, guard.angle, GUARD.sightRange, GUARD.sightHalfAngle, PALETTE.guardCone, PALETTE.guardConeEdge);
+  for (const guard of world.watchmen) {
+    drawCone(ctx, guard.x, guard.y, guard.face, WATCHMAN.sight, WATCHMAN.halfCone, PAINT.watchCone, PAINT.watchConeEdge);
   }
-  for (const camera of world.cameras) {
-    paintCone(ctx, camera.x, camera.y, camera.angle, CAMERA.sightRange, CAMERA.sightHalfAngle, PALETTE.cameraCone, PALETTE.cameraConeEdge);
+  for (const lens of world.lenses) {
+    drawCone(ctx, lens.x, lens.y, lens.face, LENS.sight, LENS.halfCone, PAINT.lensCone, PAINT.lensConeEdge);
   }
 
-  // Display cases.
-  for (const c of CASES) {
-    ctx.fillStyle = PALETTE.caseBase;
+  // Vitrines.
+  for (const c of VITRINES) {
+    ctx.fillStyle = PAINT.plinth;
     ctx.fillRect(c.x, c.y, c.w, c.h);
     ctx.fillStyle = 'rgba(127, 179, 200, 0.35)';
     ctx.fillRect(c.x + 4, c.y + 4, c.w - 8, c.h - 8);
-    ctx.strokeStyle = PALETTE.carpetEdge;
+    ctx.strokeStyle = PAINT.brass;
     ctx.lineWidth = 2;
     ctx.strokeRect(c.x, c.y, c.w, c.h);
   }
 
-  // Loot still on the floor.
-  for (const item of world.loot) {
-    if (!item.taken) paintLoot(ctx, item, time);
+  // Swag still on the floor.
+  for (const item of world.swag) {
+    if (!item.taken) drawSwag(ctx, item, now);
   }
 
-  // Walls with a brass top edge.
-  for (const w of WALLS) {
-    ctx.fillStyle = PALETTE.wall;
+  // Barriers with a brass top edge.
+  for (const w of BARRIERS) {
+    ctx.fillStyle = PAINT.stone;
     ctx.fillRect(w.x, w.y, w.w, w.h);
-    ctx.fillStyle = PALETTE.wallTop;
+    ctx.fillStyle = PAINT.stoneTop;
     if (w.h <= 24) ctx.fillRect(w.x, w.y, w.w, 4);
     else ctx.fillRect(w.x, w.y, 4, w.h);
   }
 
   // The exit door at the south wall.
-  ctx.fillStyle = world.sapphireTaken ? PALETTE.exitOpen : PALETTE.exitLocked;
-  ctx.fillRect(EXIT.x, EXIT.y, EXIT.w, EXIT.h);
-  ctx.fillStyle = world.sapphireTaken ? '#10131a' : '#e8dcc0';
+  ctx.fillStyle = world.gemInBag ? PAINT.open : PAINT.shut;
+  ctx.fillRect(DOOR.x, DOOR.y, DOOR.w, DOOR.h);
+  ctx.fillStyle = world.gemInBag ? '#10131a' : '#e8dcc0';
   ctx.font = 'bold 15px Georgia, serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(world.sapphireTaken ? 'EXIT — GO!' : 'EXIT · LOCKED', EXIT.x + EXIT.w / 2, EXIT.y + EXIT.h / 2);
+  ctx.fillText(world.gemInBag ? 'EXIT — GO!' : 'EXIT · LOCKED', DOOR.x + DOOR.w / 2, DOOR.y + DOOR.h / 2);
 
-  for (const camera of world.cameras) paintCamera(ctx, camera);
-  for (const guard of world.guards) paintGuard(ctx, guard, time);
-  paintThief(ctx, world.thief);
+  for (const lens of world.lenses) drawLens(ctx, lens);
+  for (const guard of world.watchmen) drawWatchman(ctx, guard, now);
+  drawBurglar(ctx, world.burglar);
 
-  paintHud(ctx, world);
+  drawHud(ctx, world);
 
-  if (screen === 'title') {
-    paintOverlay(ctx, 'THE MARLOW HEIST', [
+  if (scene === 'menu') {
+    drawVeil(ctx, 'THE MARLOW HEIST', [
       'One night. One gallery. One thief.',
       'Lift the Star Sapphire from the vault, grab what else you can,',
-      'and slip out the south door before the alarm fills.',
+      'and slip out the south door before the siren fills.',
       '',
-      'WASD / arrows — move      Shift — sneak (slower, harder to spot)',
-      'Stay out of the amber guard cones and the red camera sweeps.',
+      'WASD / arrows — move      Shift — creep (slower, harder to spot)',
+      'Stay out of the amber watchman cones and the red lens sweeps.',
       '',
       'Press Enter to begin',
     ], '#ffd75e');
-  } else if (screen === 'over') {
-    paintOverlay(ctx, 'BUSTED', [
-      world.statusNote,
-      `Loot taken: ${world.loot.filter((l) => l.taken).length} of ${world.loot.length}   ·   Score: ${world.score}`,
+  } else if (scene === 'caught') {
+    drawVeil(ctx, 'CAUGHT', [
+      world.note,
+      `Swag taken: ${world.swag.filter((l) => l.taken).length} of ${world.swag.length}   ·   Haul: ${world.haul}`,
       '',
       'Press R to try again',
     ], '#e5484d');
-  } else if (screen === 'won') {
-    paintOverlay(ctx, 'CLEAN GETAWAY', [
-      world.statusNote,
-      `Final score: ${world.score}`,
+  } else if (scene === 'escaped') {
+    drawVeil(ctx, 'CLEAN GETAWAY', [
+      world.note,
+      `Final haul: ${world.haul}`,
       '',
       'Press R to run it again',
     ], '#3ddc84');
-  } else if (screen === 'paused') {
-    paintOverlay(ctx, 'PAUSED', ['Press P to keep moving.'], '#e8dcc0');
+  } else if (scene === 'held') {
+    drawVeil(ctx, 'HELD UP', ['Press P to keep moving.'], '#e8dcc0');
   }
 }

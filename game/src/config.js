@@ -1,57 +1,60 @@
-// The Marlow Heist — numbers and floor plan for one night in the gallery.
-// A single thief crosses a top-down hall, dodges amber guard cones and red
-// camera sweeps, lifts the Star Sapphire out of the vault, pockets whatever
-// else fits, and leaves through the south door before the alarm meter fills.
-// Nothing here is behaviour: the numbers live here so the rules module can
-// stay pure logic and the painter can stay pure drawing.
+// The Marlow Heist — every number the night runs on, in one place.
+//
+// One thief crosses a top-down gallery after dark. The values below are the
+// whole deal: how fast feet move, how far a watchman can see, how quickly
+// the siren meter climbs while the thief is lit, where the walls stand, and
+// what is worth stealing. Nothing in this file moves or draws; it only
+// states the facts so the rules file and the painter can stay honest.
 
-export const FIELD = { width: 1280, height: 800 };
+export const ARENA = { width: 1280, height: 800 };
 
-// The thief on foot. Sneaking is slow, but it halves the rate the alarm
-// climbs and shrinks the distance from which a guard can spot you.
-export const THIEF = {
+// The burglar. Creeping is slow, but a creeping thief is harder to spot
+// (a watchman's reach shrinks) and the siren climbs half as fast.
+export const BURGLAR = {
   radius: 14,
-  walkSpeed: 175,
-  sneakSpeed: 92,
-  sneakSightShrink: 0.62,
-  sneakAlarmFactor: 0.5,
+  stroll: 175,
+  creep: 92,
+  creepSight: 0.62,
+  creepAlarm: 0.5,
 };
 
-// A guard walks between waypoints, looks down a cone, and gives chase when
-// the thief comes too close inside that cone.
-export const GUARD = {
+// A watchman walks his route, looks down a cone, and gives chase when the
+// thief is close inside that cone. Catching the thief shoves them away and
+// feeds the siren.
+export const WATCHMAN = {
   radius: 15,
-  patrolSpeed: 78,
-  chaseSpeed: 205,
-  sightRange: 235,
-  sightHalfAngle: 0.61, // about 35 degrees to each side
-  chaseTriggerRange: 80,
-  chaseMemorySeconds: 3,
-  touchAlarm: 25,
+  patrol: 78,
+  pursuit: 205,
+  sight: 235,
+  halfCone: 0.61,
+  chaseWithin: 80,
+  memory: 3,
+  grabAlarm: 25,
 };
 
-// A camera is bolted to a wall and sweeps its cone side to side. It never
-// walks, but its cone reaches further than any guard's.
-export const CAMERA = {
-  sightRange: 265,
-  sightHalfAngle: 0.52, // about 30 degrees to each side
-  sweepHalfAngle: 0.9,
-  sweepSeconds: 4.5,
-  alarmPerSecond: 18,
+// A lens is bolted to the wall and sweeps its cone back and forth. It never
+// walks, but its cone reaches further than any watchman's.
+export const LENS = {
+  sight: 265,
+  halfCone: 0.52,
+  sweep: 0.9,
+  sweepTime: 4.5,
+  alarmRate: 18,
 };
 
-// The alarm meter. A guard's gaze fills it fast, a camera's a little
-// slower; out of sight it drains away. At 100 the gallery locks down.
-export const ALARM = {
-  guardPerSecond: 26,
-  decayPerSecond: 6,
-  decayLatePerSecond: 3,
-  max: 100,
+// The siren meter. A watchman's gaze fills it fast, a lens a little slower;
+// unseen, it drains away, slower still once most of the swag is gone.
+// At the ceiling the gallery locks down and the night is over.
+export const SIREN = {
+  watchmanRate: 26,
+  coolDown: 6,
+  coolDownLate: 3,
+  ceiling: 100,
 };
 
-// Solid rectangles. Walls block both movement and sight; display cases block
-// movement only, so a guard can still see over one.
-export const WALLS = [
+// Solid rectangles. Barriers block movement and sight both; vitrines block
+// movement only, so a watchman can still see over one.
+export const BARRIERS = [
   // Outer shell.
   { x: 0, y: 0, w: 1280, h: 24 },
   { x: 0, y: 776, w: 1280, h: 24 },
@@ -70,7 +73,7 @@ export const WALLS = [
   { x: 864, y: 480, w: 16, h: 80 },
 ];
 
-export const CASES = [
+export const VITRINES = [
   { x: 300, y: 300, w: 90, h: 50 },
   { x: 890, y: 300, w: 90, h: 50 },
   { x: 300, y: 620, w: 90, h: 50 },
@@ -78,57 +81,57 @@ export const CASES = [
   { x: 595, y: 380, w: 90, h: 50 },
 ];
 
-// The loot. The sapphire is the job itself: the exit stays locked until it
+// The swag. The sapphire is the job itself: the door stays shut until it
 // is in the bag.
-export const LOOT = [
-  { id: 'sapphire', kind: 'gem', name: 'Star Sapphire', x: 640, y: 140, value: 500, required: true },
-  { id: 'duchess', kind: 'painting', name: 'Portrait of the Duchess', x: 200, y: 340, value: 200, required: false },
-  { id: 'idol', kind: 'idol', name: 'Golden Idol', x: 1080, y: 340, value: 250, required: false },
-  { id: 'pearls', kind: 'pearls', name: 'Pearl Necklace', x: 345, y: 700, value: 150, required: false },
-  { id: 'mask', kind: 'mask', name: 'Jade Mask', x: 935, y: 700, value: 150, required: false },
+export const SWAG = [
+  { id: 'sapphire', kind: 'gem', label: 'Star Sapphire', x: 640, y: 140, worth: 500, key: true },
+  { id: 'duchess', kind: 'painting', label: 'Portrait of the Duchess', x: 200, y: 340, worth: 200, key: false },
+  { id: 'idol', kind: 'idol', label: 'Golden Idol', x: 1080, y: 340, worth: 250, key: false },
+  { id: 'pearls', kind: 'pearls', label: 'Pearl Necklace', x: 345, y: 700, worth: 150, key: false },
+  { id: 'mask', kind: 'mask', label: 'Jade Mask', x: 935, y: 700, worth: 150, key: false },
 ];
 
-export const GUARDS = [
-  { waypoints: [{ x: 300, y: 470 }, { x: 980, y: 470 }] },
-  { waypoints: [{ x: 200, y: 300 }, { x: 200, y: 650 }] },
-  { waypoints: [{ x: 1080, y: 300 }, { x: 1080, y: 650 }] },
+export const PATROLS = [
+  { route: [{ x: 300, y: 470 }, { x: 980, y: 470 }] },
+  { route: [{ x: 200, y: 300 }, { x: 200, y: 650 }] },
+  { route: [{ x: 1080, y: 300 }, { x: 1080, y: 650 }] },
 ];
 
-export const CAMERAS = [
+export const EYES = [
   // Under the vault door, sweeping the hall below it.
-  { x: 640, y: 244, baseAngle: Math.PI / 2 },
+  { x: 640, y: 244, rest: Math.PI / 2 },
   // Top-right corner, sweeping down and to the left.
-  { x: 980, y: 40, baseAngle: Math.PI * 0.75 },
+  { x: 980, y: 40, rest: Math.PI * 0.75 },
 ];
 
-export const EXIT = { x: 600, y: 740, w: 80, h: 36 };
-export const THIEF_START = { x: 640, y: 716 };
+export const DOOR = { x: 600, y: 740, w: 80, h: 36 };
+export const START = { x: 640, y: 716 };
 
-export const SCORE = { timeBonusPerSecond: 2, timeBonusCapSeconds: 600 };
+export const POINTS = { bonusPerSecond: 2, bonusWindow: 600 };
 
 // Palette: a gallery at night — dark wood, brass, deep red carpet, cold stone.
-export const PALETTE = {
-  floor: '#241a12',
-  floorTile: '#2b1f15',
-  carpet: '#5a1f24',
-  carpetEdge: '#8a6d2f',
-  wall: '#3a3f4a',
-  wallTop: '#565d6e',
-  caseGlass: '#7fb3c8',
-  caseBase: '#4a3220',
-  hudBar: '#10131a',
-  hudText: '#e8dcc0',
-  alarmLow: '#e8b13c',
-  alarmHigh: '#e5484d',
-  guardCone: 'rgba(232, 177, 60, 0.20)',
-  guardConeEdge: 'rgba(232, 177, 60, 0.55)',
-  cameraCone: 'rgba(229, 72, 77, 0.16)',
-  cameraConeEdge: 'rgba(229, 72, 77, 0.5)',
-  thief: '#1c2733',
-  thiefCloak: '#31465e',
-  guard: '#2c3e5e',
-  guardCap: '#1a2436',
-  lootGlow: '#ffd75e',
-  exitOpen: '#3ddc84',
-  exitLocked: '#8a8f98',
+export const PAINT = {
+  boards: '#241a12',
+  plank: '#2b1f15',
+  runner: '#5a1f24',
+  brass: '#8a6d2f',
+  stone: '#3a3f4a',
+  stoneTop: '#565d6e',
+  glass: '#7fb3c8',
+  plinth: '#4a3220',
+  bar: '#10131a',
+  ink: '#e8dcc0',
+  amber: '#e8b13c',
+  red: '#e5484d',
+  watchCone: 'rgba(232, 177, 60, 0.20)',
+  watchConeEdge: 'rgba(232, 177, 60, 0.55)',
+  lensCone: 'rgba(229, 72, 77, 0.16)',
+  lensConeEdge: 'rgba(229, 72, 77, 0.5)',
+  coat: '#1c2733',
+  cloak: '#31465e',
+  uniform: '#2c3e5e',
+  cap: '#1a2436',
+  glint: '#ffd75e',
+  open: '#3ddc84',
+  shut: '#8a8f98',
 };

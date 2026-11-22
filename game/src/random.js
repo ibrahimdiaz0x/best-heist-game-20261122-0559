@@ -1,8 +1,8 @@
-// A small seeded random source (mulberry32) so a staged screenshot scene
-// plays out identically every time it runs, and so the game can shuffle
-// small details per run without calling Math.random in the hot path.
+// A small seeded random source (mulberry32) so a staged scene plays out
+// the same way every time it runs, and so the game can shuffle small
+// details per run without leaning on Math.random in the hot path.
 
-export function makeRandom(seed) {
+export function seedRand(seed) {
   let state = seed >>> 0;
   return function next() {
     state |= 0;
@@ -13,6 +13,6 @@ export function makeRandom(seed) {
   };
 }
 
-export function pickBetween(rng, low, high) {
+export function between(rng, low, high) {
   return low + rng() * (high - low);
 }
