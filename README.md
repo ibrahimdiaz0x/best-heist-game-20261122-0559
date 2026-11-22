@@ -1,8 +1,8 @@
 # The Marlow Heist
 
-[![make.fun bounty](https://img.shields.io/badge/make.fun-bounty-7c5cff)](https://make.fun/bounty/best-heist-game-20261122-0559)
-[![Prize $50](https://img.shields.io/badge/prize-%2450-gold)](https://make.fun/bounty/best-heist-game-20261122-0559)
-[![Game: The Marlow Heist](https://img.shields.io/badge/game-The%20Marlow%20Heist-darkgreen)](https://make.fun/bounty/best-heist-game-20261122-0559)
+[![make.fun · best-heist-game-20261122-0559](https://make.fun/badge/best-heist-game-20261122-0559.svg)](https://make.fun/bounty/best-heist-game-20261122-0559?utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559)
+[![rank](https://make.fun/badge/best-heist-game-20261122-0559/ibrahimdiaz0x/best-heist-game-20261122-0559/rank.svg)](https://make.fun/bounty/best-heist-game-20261122-0559/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559)
+[![reward](https://make.fun/badge/best-heist-game-20261122-0559/ibrahimdiaz0x/best-heist-game-20261122-0559/reward.svg)](https://make.fun/bounty/best-heist-game-20261122-0559?utm_source=github&utm_medium=readme&utm_campaign=best-heist-game-20261122-0559)
 
 A top-down gallery heist for the make.fun bounty **"Make the best heist
 game"**. One thief, one night, five pieces on display — the Star Sapphire
