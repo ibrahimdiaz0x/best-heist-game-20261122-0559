@@ -1,21 +1,18 @@
-// A tiny static server for game/ (Node 22, standard library only), so the
-// heist can be played locally without a build step:
-//   node serve.ts            (then open http://localhost:8080)
-//   node serve.ts --port 8901
-// It only serves files under game/, sends the MIME types a browser game
-// needs, and refuses any path that climbs out of the folder.
+// The Marlow Heist — a tiny static file server for local play-testing.
+//
+// Serves game/ at the root: / opens game/index.html, /src/*.js serve the
+// modules, and an unknown path falls back to the game page so a staged
+// scene link still opens the game. Standard library only; run it with
+// `node serve.ts --port 8080` (the screenshot driver uses port 8902).
 
-import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join, extname, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(fileURLToPath(new URL('./game', import.meta.url)));
-const flagAt = process.argv.indexOf('--port');
-const wanted = flagAt === -1 ? 8080 : Number(process.argv[flagAt + 1]);
-const port = Number.isInteger(wanted) && wanted > 0 && wanted < 65536 ? wanted : 8080;
+const GAME_DIR = join(dirname(fileURLToPath(import.meta.url)), 'game');
 
-const MEDIA = {
+const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
@@ -24,46 +21,58 @@ const MEDIA = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.wav': 'audio/wav',
-  '.mp3': 'audio/mpeg',
-  '.ogg': 'audio/ogg',
-  '.txt': 'text/plain; charset=utf-8',
 };
 
-createServer((request, response) => {
-  const url = new URL(request.url ?? '/', 'http://localhost');
-  let pathname;
+function portFromArgs() {
+  const i = process.argv.indexOf('--port');
+  const p = i >= 0 ? Number(process.argv[i + 1]) : 8080;
+  return Number.isFinite(p) && p > 0 ? p : 8080;
+}
+
+// A browser automation quirk can deliver the whole target URL
+// percent-encoded as the path (/%2F%3Fscene%3Dplay). Unwrap it with a
+// redirect, so the page lands on a clean URL whose query string the
+// game can actually read.
+const server = createServer(async (req, res) => {
+  const raw = req.url ?? '/';
+  let decoded = raw;
   try {
-    pathname = decodeURIComponent(url.pathname);
+    decoded = decodeURIComponent(raw);
   } catch {
-    response.writeHead(400).end('bad request');
+    decoded = raw;
+  }
+  if (decoded !== raw && decoded.startsWith('/') && decoded.includes('?')) {
+    res.writeHead(302, { Location: decoded });
+    res.end();
     return;
   }
-  if (pathname.endsWith('/')) pathname += 'index.html';
-  const file = resolve(join(root, normalize(pathname)));
-  if (file !== root && !file.startsWith(root + sep)) {
-    response.writeHead(403).end('forbidden');
+  const path = decoded.split('?')[0] || '/';
+  const file = path === '/' ? 'index.html' : path.replace(/^\/+/, '');
+  const full = join(GAME_DIR, normalize(file));
+  if (!full.startsWith(GAME_DIR)) {
+    res.writeHead(403);
+    res.end();
     return;
   }
-  let size;
   try {
-    const stats = statSync(file);
-    if (!stats.isFile()) throw new Error('not a file');
-    size = stats.size;
+    const data = await readFile(full);
+    res.writeHead(200, { 'Content-Type': TYPES[extname(full)] ?? 'application/octet-stream' });
+    res.end(data);
   } catch {
-    response.writeHead(404).end('not found');
-    return;
+    // Unknown path: serve the game page itself.
+    try {
+      const data = await readFile(join(GAME_DIR, 'index.html'));
+      res.writeHead(200, { 'Content-Type': TYPES['.html'] });
+      res.end(data);
+    } catch {
+      res.writeHead(500);
+      res.end();
+    }
   }
-  response.writeHead(200, {
-    'content-type': MEDIA[extname(file).toLowerCase()] ?? 'application/octet-stream',
-    'content-length': size,
-    'cache-control': 'no-store',
-  });
-  createReadStream(file).pipe(response);
-}).listen(port, '127.0.0.1', () => {
-  console.log(`game/ is on http://localhost:${port}`);
+});
+
+const PORT = portFromArgs();
+server.listen(PORT, '127.0.0.1', () => {
+  console.log('Marlow Heist serving game/ on port ' + PORT);
 });

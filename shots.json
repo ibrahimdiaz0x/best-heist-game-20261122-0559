@@ -1,22 +1,18 @@
 [
   {
     "name": "1-start.jpg",
-    "query": "?shot=start&seed=1",
-    "scene": "start"
+    "query": "/?scene=start"
   },
   {
     "name": "2-play.jpg",
-    "query": "?shot=play&seed=1",
-    "scene": "play"
+    "query": "/?scene=play"
   },
   {
     "name": "3-alarm.jpg",
-    "query": "?shot=alarm&seed=1",
-    "scene": "alarm"
+    "query": "/?scene=alarm"
   },
   {
     "name": "4-escape.jpg",
-    "query": "?shot=escape&seed=1",
-    "scene": "escape"
+    "query": "/?scene=escape"
   }
 ]
